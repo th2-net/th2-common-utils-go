@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func MessageToMapConvertValue(value common_proto.Value) interface{} {
+func valueToMap(value common_proto.Value) interface{} {
 
 	/*
 		It will be easier to simplify the real meaning of values
@@ -22,6 +22,7 @@ func MessageToMapConvertValue(value common_proto.Value) interface{} {
 	*/
 
 	kind := value.GetKind()
+
 	switch kind.(type) {
 
 	case *common_proto.Value_SimpleValue:
@@ -30,21 +31,18 @@ func MessageToMapConvertValue(value common_proto.Value) interface{} {
 	case *common_proto.Value_ListValue:
 		var listValues []interface{}
 		for _, val := range value.GetListValue().Values {
-			listValues = append(listValues, MessageToMapConvertValue(*val))
+			listValues = append(listValues, valueToMap(*val))
 		}
 		return listValues
 
 	case *common_proto.Value_MessageValue:
-		fields := make(map[string]interface{})
-		for field, field_val := range value.GetMessageValue().GetFields() {
-			fields[field] = MessageToMapConvertValue(*field_val)
-		}
-		return fields
+		return convertMessageToMap(*value.GetMessageValue())
 
 	default:
 		return "error"
 
 	}
+
 }
 
 func convertMessageToMap(message common_proto.Message) map[string]interface{} {
@@ -55,33 +53,47 @@ func convertMessageToMap(message common_proto.Message) map[string]interface{} {
 		Similarly to the above method, in some unnecessary fields the nested field names are neglected.
 	*/
 
+	m := make(map[string]interface{})
+
+	// converting metadataToMap
+
 	metadata := message.Metadata
+
+	metadataToMap := make(map[string]interface{})
+
+	if metadata != nil {
+
+		metadataToMap["Timestamp"] = metadata.Timestamp
+		metadataToMap["MessageType"] = metadata.MessageType
+		metadataToMap["Properties"] = metadata.Properties
+		metadataToMap["Protocol"] = metadata.Protocol
+
+		if metadata.Id != nil {
+			metadataToMap["Direction"] = metadata.Id.Direction
+			metadataToMap["Sequence"] = metadata.Id.Sequence
+			metadataToMap["Subsequence"] = metadata.Id.Subsequence
+
+			if metadata.Id.ConnectionId != nil {
+				metadataToMap["SessionAlias"] = metadata.Id.ConnectionId.SessionAlias
+				metadataToMap["SessionGroup"] = metadata.Id.ConnectionId.SessionGroup
+			}
+		}
+
+		m["Metadata"] = metadataToMap
+	}
+
+	// converting message fields to map
 
 	fieldValues := make(map[string]interface{})
 
 	for field, field_value := range message.Fields {
-		fieldValues[field] = MessageToMapConvertValue(*field_value)
+		fieldValues[field] = valueToMap(*field_value)
 	}
 
-	m := map[string]interface{}{
-		"Metadata": map[string]interface{}{
-			"SessionAlias": metadata.Id.ConnectionId.SessionAlias,
-			"SessionGroup": metadata.Id.ConnectionId.SessionGroup,
-			"Direction":    metadata.Id.Direction,
-			"Sequence":     metadata.Id.Sequence,
-			"Subsequence":  metadata.Id.Subsequence,
-			"Timestamp":    metadata.Timestamp,
-			"MessageType":  metadata.MessageType,
-			"Properties":   metadata.Properties,
-			"Protocol":     metadata.Protocol,
-		},
-		"Fields": fieldValues,
-	}
+	m["Fields"] = fieldValues
 
 	if message.ParentEventId != nil {
 		m["ParentEventId"] = message.ParentEventId.Id
-	} else {
-		m["ParentEventId"] = ""
 	}
 
 	return m
@@ -103,14 +115,12 @@ func convertRequestToMap(request act.PlaceMessageRequest) map[string]interface{}
 
 	if request.ParentEventId != nil {
 		m["ParentEventId"] = request.ParentEventId.Id
-	} else {
-		m["ParentEventId"] = nil
 	}
 
 	return m
 }
 
-func mapToMessageConvertValue(entity interface{}) *common_proto.Value {
+func mapToValue(entity interface{}) *common_proto.Value {
 
 	/*
 		Now everything goes the same way but backwards. These method is inverse of the MessageToMapConvertValue method.
@@ -123,20 +133,68 @@ func mapToMessageConvertValue(entity interface{}) *common_proto.Value {
 	case []interface{}:
 		var listValue []*common_proto.Value
 		for _, val := range entity.([]interface{}) {
-			listValue = append(listValue, mapToMessageConvertValue(val))
+			listValue = append(listValue, mapToValue(val))
 		}
 		return &common_proto.Value{Kind: &common_proto.Value_ListValue{ListValue: &common_proto.ListValue{Values: listValue}}}
 
 	case map[string]interface{}:
-		messageFields := make(map[string]*common_proto.Value)
-		for k, v := range entity.(map[string]interface{}) {
-			messageFields[k] = mapToMessageConvertValue(v)
-		}
-		return &common_proto.Value{Kind: &common_proto.Value_MessageValue{MessageValue: &common_proto.Message{Fields: messageFields}}}
+
+		return &common_proto.Value{Kind: &common_proto.Value_MessageValue{
+			MessageValue: convertMapToMessage(entity.(map[string]interface{}))}}
 
 	default:
 		return &common_proto.Value{}
 	}
+
+}
+
+func convertMapToMessage(msg map[string]interface{}) *common_proto.Message {
+
+	metadata := msg["Metadata"]
+	message := common_proto.Message{}
+
+	if metadata != nil {
+
+		message.Metadata = &common_proto.MessageMetadata{
+			Timestamp:   metadata.(map[string]interface{})["Timestamp"].(*timestamp.Timestamp),
+			MessageType: metadata.(map[string]interface{})["MessageType"].(string),
+			//Properties:  metadata.(map[string]interface{})["MessageType"].(map[string]string),
+			Protocol: metadata.(map[string]interface{})["Protocol"].(string),
+		}
+
+		messageID := common_proto.MessageID{}
+		conID := common_proto.ConnectionID{}
+
+		if metadata.(map[string]interface{})["SessionAlias"] != nil {
+			conID.SessionAlias = metadata.(map[string]interface{})["SessionAlias"].(string)
+			conID.SessionGroup = metadata.(map[string]interface{})["SessionGroup"].(string)
+			messageID.ConnectionId = &conID
+		}
+
+		if metadata.(map[string]interface{})["Sequence"] != nil {
+			messageID.Sequence = metadata.(map[string]interface{})["Sequence"].(int64)
+			messageID.Subsequence = metadata.(map[string]interface{})["Subsequence"].([]uint32)
+			messageID.Direction = metadata.(map[string]interface{})["Direction"].(common_proto.Direction)
+			message.Metadata.Id = &messageID
+		}
+
+	}
+
+	fieldsConverted := make(map[string]*common_proto.Value)
+
+	fields := msg["Fields"]
+
+	for field, field_value := range fields.(map[string]interface{}) {
+		fieldsConverted[field] = mapToValue(field_value)
+	}
+
+	message.Fields = fieldsConverted
+
+	if msg["ParentEventId"] != nil {
+		message.ParentEventId = &common_proto.EventID{Id: msg["ParentEventId"].(string)}
+	}
+
+	return &message
 
 }
 
@@ -146,49 +204,22 @@ func convertMapToRequest(m map[string]interface{}) act.PlaceMessageRequest {
 		Simply decoding the map taking into consideration the way we have filled that.
 	*/
 
-	metadata := m["Message"].(map[string]interface{})["Metadata"]
-	message := common_proto.Message{}
-
-	if m["ParentEventId"] != nil {
-		message.ParentEventId = &common_proto.EventID{Id: m["Message"].(map[string]interface{})["ParentEventId"].(string)}
-	}
-
-	message.Metadata = &common_proto.MessageMetadata{
-		Id: &common_proto.MessageID{
-			Sequence:    metadata.(map[string]interface{})["Sequence"].(int64),
-			Subsequence: metadata.(map[string]interface{})["Subsequence"].([]uint32),
-			Direction:   metadata.(map[string]interface{})["Direction"].(common_proto.Direction),
-			ConnectionId: &common_proto.ConnectionID{
-				SessionAlias: metadata.(map[string]interface{})["SessionAlias"].(string),
-				SessionGroup: metadata.(map[string]interface{})["SessionGroup"].(string),
-			},
-		},
-		Timestamp:   metadata.(map[string]interface{})["Timestamp"].(*timestamp.Timestamp),
-		MessageType: metadata.(map[string]interface{})["MessageType"].(string),
-		//Properties:  metadata.(map[string]interface{})["MessageType"].(map[string]string),
-		Protocol: metadata.(map[string]interface{})["Protocol"].(string),
-	}
-
-	fieldsConverted := make(map[string]*common_proto.Value)
-
-	fields := m["Message"].(map[string]interface{})["Fields"]
-
-	for field, field_value := range fields.(map[string]interface{}) {
-		fieldsConverted[field] = mapToMessageConvertValue(field_value)
-	}
-
-	message.Fields = fieldsConverted
+	message := convertMapToMessage(m["Message"].(map[string]interface{}))
 
 	request := act.PlaceMessageRequest{
-		Message:       &message,
-		ParentEventId: &common_proto.EventID{Id: m["ParentEventId"].(string)},
-		Description:   m["Description"].(string),
-		ConnectionId:  m["ConnectionId"].(*common_proto.ConnectionID),
+		Message:      message,
+		Description:  m["Description"].(string),
+		ConnectionId: m["ConnectionId"].(*common_proto.ConnectionID),
 	}
+
+	if m["ParentEventId"] != nil {
+		request.ParentEventId = &common_proto.EventID{Id: m["ParentEventId"].(string)}
+	}
+
 	return request
 }
 
-// random functions for certain fields in request object
+// random generating functions for certain fields in request object
 
 func StringWithCharset(length int, charset string) string {
 	rand.Seed(time.Now().UnixNano())
@@ -274,27 +305,28 @@ func main() {
 	}
 
 	reqToMap := convertRequestToMap(request)
-	//fmt.Println(reqToMap)
 
-	requestAsJson, err := json.MarshalIndent(reqToMap, "", "   ")
+	reqToMapAsJson, err := json.MarshalIndent(reqToMap, "", "   ")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(string(requestAsJson)) // this thing and the thing which is printed on 298th line have to be the same, in this case, they are.
+	reqToMapToReq := convertMapToRequest(reqToMap)
 
-	fmt.Println()
-	fmt.Println("First printing is done")
-	fmt.Println()
-	mapToReq := convertMapToRequest(reqToMap)
+	reqToMapToReqToMap := convertRequestToMap(reqToMapToReq)
 
-	mapToReqToMap := convertRequestToMap(mapToReq)
+	reqToMapToReqToMapAsJson, err1 := json.MarshalIndent(reqToMapToReqToMap, "", "   ")
 
-	requestAsJson1, err1 := json.MarshalIndent(mapToReqToMap, "", "   ")
 	if err1 != nil {
 		log.Fatal(err1)
 	}
 
-	fmt.Println(string(requestAsJson1))
+	fmt.Println(request)
+	fmt.Println()
+	fmt.Println(reqToMapToReq)
+	fmt.Println()
+	fmt.Println(string(reqToMapAsJson))
+	fmt.Println()
+	fmt.Println(string(reqToMapToReqToMapAsJson))
 
 }
