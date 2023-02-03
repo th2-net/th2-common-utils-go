@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
@@ -58,7 +59,13 @@ func TestAddRow(t *testing.T) {
 			t.Errorf("One of the rows is incorrectly added to the table; expected %v got %v", expectedRow, row)
 		}
 	}
-	if _, err := json.Marshal(&table); err != nil {
+	encoded, err := json.Marshal(&table)
+	if err != nil {
 		t.Error("Error occured during json encoding of the table")
+	}
+	pattern := "^{\"type\":\"table\",\"rows\":\\[({(\"header \\d+\":\"header \\d+\",{0,1})*},{0,1})*\\],\"headers\":\\[(\"header \\d+\",{0,1})*\\]}$"
+	match, _ := regexp.MatchString(pattern, string(encoded))
+	if !match {
+		t.Errorf("Incorrect string format: got %v", string(encoded))
 	}
 }
