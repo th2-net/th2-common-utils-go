@@ -14,25 +14,21 @@
  * limitations under the License.
  */
 
-package utils
+package event
 
-type Table struct {
-	Type    string        `json:"type"`
-	Rows    []interface{} `json:"rows"`
-	Headers []string      `json:"headers"`
+import (
+	p_buff "th2-grpc/th2_grpc_common"
+
+	"github.com/google/uuid"
+)
+
+func CreateEventID() *p_buff.EventID {
+	return &p_buff.EventID{Id: uuid.New().String()}
 }
 
-func GetNewTable(headers ...string) *Table {
-	return &Table{
-		Type:    "table",
-		Rows:    nil,
-		Headers: headers,
+func CreateEventBatch(ParentEventId *p_buff.EventID, Events ...*p_buff.Event) *p_buff.EventBatch {
+	return &p_buff.EventBatch{
+		ParentEventId: ParentEventId,
+		Events:        append([]*p_buff.Event(nil), Events...),
 	}
-}
-func (table *Table) AddRow(args ...string) {
-	row := make(map[string]string)
-	for i, arg := range args {
-		row[table.Headers[i]] = arg
-	}
-	table.Rows = append(table.Rows, row)
 }

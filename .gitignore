@@ -4,7 +4,8 @@
 *.dll
 *.so
 *.dylib
-
+.idea
+go.work.sum
 # Test binary, built with `go test -c`
 *.test
 
@@ -13,3 +14,10 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+.idea
+.DS_Store
+
+# golang
+th2-grpc
+bin
+go.work

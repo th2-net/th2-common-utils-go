@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package test
+package event
 
 import (
+	utils "github.com/th2-net/th2-common-utils-go/pkg/event"
+	"google.golang.org/protobuf/proto"
 	"math/rand"
 	"regexp"
 	"testing"
 	"time"
 
 	p_buff "th2-grpc/th2_grpc_common"
-
-	utils "github.com/th2-net/th2-common-utils-go/th2_common_utils"
 )
 
 func TestCreateEventID(t *testing.T) {
@@ -48,16 +48,47 @@ func TestCreateEventBatch(t *testing.T) {
 		}
 		events = append(events, newEvent)
 	}
-	eventBatch := utils.CreateEventBatch(
-		nil,
-		events...,
-	)
-	if batchAmount := len(eventBatch.Events); batchAmount != amount {
-		t.Errorf("Length test failed: expected %v got %v", amount, batchAmount)
+	data := []struct {
+		events   []*p_buff.Event
+		parentId *p_buff.EventID
+	}{
+		{
+			events:   events,
+			parentId: nil,
+		},
+		{
+			events:   events,
+			parentId: utils.CreateEventID(),
+		},
 	}
-	for _, event := range eventBatch.Events {
-		if event.Id.Id == "" {
-			t.Error("eventID.Id is empty for one of the events in Batch")
+
+	for _, td := range data {
+		var name string
+		if td.parentId == nil {
+			name = "no parent id"
+		} else {
+			name = "with parent id"
 		}
+		t.Run(name, func(t *testing.T) {
+			eventBatch := utils.CreateEventBatch(
+				td.parentId,
+				td.events...,
+			)
+			if !proto.Equal(td.parentId, eventBatch.GetParentEventId()) {
+				t.Errorf("batch parent ID does not match the expected one")
+			}
+			if batchAmount := len(eventBatch.Events); batchAmount != amount {
+				t.Errorf("Length test failed: expected %v got %v", amount, batchAmount)
+			}
+			for i, event := range eventBatch.Events {
+				if event.Id.Id == "" {
+					t.Error("eventID.Id is empty for one of the events in Batch")
+				}
+				expected := td.events[i]
+				if !proto.Equal(expected, event) {
+					t.Errorf("event %d (%v) does not match expected event %v", i, event, expected)
+				}
+			}
+		})
 	}
 }
