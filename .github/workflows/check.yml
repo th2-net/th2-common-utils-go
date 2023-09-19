@@ -15,9 +15,6 @@ jobs:
       
       - name: Install protoc
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && protoc --version
-        
-      - name: Init repository
-        run: make prepare-main-module
       
       - name: Build sources
         run: make build
