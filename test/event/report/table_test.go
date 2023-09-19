@@ -14,18 +14,17 @@
  * limitations under the License.
  */
 
-package test
+package report
 
 import (
 	"encoding/json"
 	"fmt"
+	utils "github.com/th2-net/th2-common-utils-go/pkg/event/report"
 	"math/rand"
 	"reflect"
 	"regexp"
 	"testing"
 	"time"
-
-	utils "github.com/th2-net/th2-common-utils-go/th2_common_utils"
 )
 
 func TestGetNewTable(t *testing.T) {
@@ -47,7 +46,7 @@ func TestGetNewTable(t *testing.T) {
 		t.Errorf("Headers are not correct: expected %v got %v", headers, table.Headers)
 	}
 	if _, err := json.Marshal(&table); err != nil {
-		t.Error("Error occured during json encoding of the table")
+		t.Error("Error occurred during json encoding of the table")
 	}
 }
 
@@ -77,7 +76,7 @@ func TestAddRow(t *testing.T) {
 	}
 	encoded, err := json.Marshal(&table)
 	if err != nil {
-		t.Error("Error occured during json encoding of the table")
+		t.Error("Error occurred during json encoding of the table")
 	}
 	pattern := "^{\"type\":\"table\",\"rows\":\\[({(\"header \\d+\":\"header \\d+\",{0,1})*},{0,1})*\\],\"headers\":\\[(\"header \\d+\",{0,1})*\\]}$"
 	match, _ := regexp.MatchString(pattern, string(encoded))

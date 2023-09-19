@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
-package utils
+package report
 
-import (
-	p_buff "th2-grpc/th2_grpc_common"
-
-	"github.com/google/uuid"
-)
-
-func CreateEventID() *p_buff.EventID {
-	return &p_buff.EventID{Id: uuid.New().String()}
+type Table struct {
+	Type    string        `json:"type"`
+	Rows    []interface{} `json:"rows"`
+	Headers []string      `json:"headers"`
 }
 
-func CreateEventBatch(ParentEventId *p_buff.EventID, Events ...*p_buff.Event) *p_buff.EventBatch {
-	EventBatch := p_buff.EventBatch{
-		ParentEventId: ParentEventId,
+func GetNewTable(headers ...string) *Table {
+	return &Table{
+		Type:    "table",
+		Rows:    nil,
+		Headers: headers,
 	}
-	EventBatch.Events = append(EventBatch.Events, Events...)
-	return &EventBatch
+}
+func (table *Table) AddRow(args ...string) {
+	row := make(map[string]string)
+	for i, arg := range args {
+		row[table.Headers[i]] = arg
+	}
+	table.Rows = append(table.Rows, row)
 }
