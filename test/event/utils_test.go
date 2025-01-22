@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Exactpro (Exactpro Systems Limited)
+ * Copyright 2023-2025 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,25 @@
 package event
 
 import (
-	utils "github.com/th2-net/th2-common-utils-go/pkg/event"
-	"google.golang.org/protobuf/proto"
 	"math/rand"
 	"regexp"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	utils "github.com/th2-net/th2-common-utils-go/pkg/event"
+	"google.golang.org/protobuf/proto"
+
 	p_buff "github.com/th2-net/th2-common-go/pkg/common/grpc/th2_grpc_common"
 )
 
+const (
+	book  = "book"
+	scope = "scope"
+)
+
 func TestCreateEventID(t *testing.T) {
-	eventID := utils.CreateEventID()
+	eventID := utils.CreateEventID(book, scope)
 	if eventID.Id == "" {
 		t.Error("eventID.Id is empty")
 	}
@@ -36,6 +43,9 @@ func TestCreateEventID(t *testing.T) {
 	if !match {
 		t.Error("eventID.Id is not a universally unique identifier (UUID)")
 	}
+	assert.Equal(t, book, eventID.BookName)
+	assert.Equal(t, scope, eventID.Scope)
+	assert.NotNil(t, eventID.StartTimestamp)
 }
 
 func TestCreateEventBatch(t *testing.T) {
@@ -44,7 +54,7 @@ func TestCreateEventBatch(t *testing.T) {
 	amount := 5 + rand.Intn(10)
 	for i := 0; i < amount; i++ {
 		newEvent := &p_buff.Event{
-			Id: utils.CreateEventID(),
+			Id: utils.CreateEventID(book, scope),
 		}
 		events = append(events, newEvent)
 	}
@@ -58,7 +68,7 @@ func TestCreateEventBatch(t *testing.T) {
 		},
 		{
 			events:   events,
-			parentId: utils.CreateEventID(),
+			parentId: utils.CreateEventID(book, scope),
 		},
 	}
 
