@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Exactpro (Exactpro Systems Limited)
+ * Copyright 2023-2025 Exactpro (Exactpro Systems Limited)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,18 @@ package event
 
 import (
 	p_buff "github.com/th2-net/th2-common-go/pkg/common/grpc/th2_grpc_common"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/google/uuid"
 )
 
-func CreateEventID() *p_buff.EventID {
-	return &p_buff.EventID{Id: uuid.New().String()}
+func CreateEventID(book string, scope string) *p_buff.EventID {
+	return &p_buff.EventID{
+		BookName:       book,
+		Scope:          scope,
+		Id:             uuid.New().String(),
+		StartTimestamp: timestamppb.Now(),
+	}
 }
 
 func CreateEventBatch(ParentEventId *p_buff.EventID, Events ...*p_buff.Event) *p_buff.EventBatch {
